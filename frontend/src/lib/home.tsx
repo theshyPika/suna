@@ -109,8 +109,8 @@ export const siteConfig = {
     githubUrl: 'https://github.com/kortix-ai/suna',
     title: 'Suna, the AI Employee.',
     description:
-      'Suna by Kortix – is a generalist AI Agent that acts on your behalf.',
-    inputPlaceholder: 'Ask Suna to...',
+      'Pia AI by NesiNext is a generalist AI Agent that acts on your behalf.',
+    inputPlaceholder: 'Ask Pia AI to...',
   },
   cloudPricingItems: [
     {
