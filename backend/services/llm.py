@@ -16,6 +16,7 @@ import json
 import asyncio
 from openai import OpenAIError
 import litellm
+from litellm.router import Router
 from litellm.files.main import ModelResponse
 from utils.logger import logger
 from utils.config import config
@@ -27,6 +28,7 @@ litellm.modify_params=True
 MAX_RETRIES = 2
 RATE_LIMIT_DELAY = 30
 RETRY_DELAY = 0.1
+provider_router = None
 
 class LLMError(Exception):
     """Base exception for LLM-related errors."""
@@ -38,7 +40,7 @@ class LLMRetryError(LLMError):
 
 def setup_api_keys() -> None:
     """Set up API keys from environment variables."""
-    providers = ['OPENAI', 'ANTHROPIC', 'GROQ', 'OPENROUTER', 'XAI', 'MORPH', 'GEMINI']
+    providers = ['OPENAI', 'ANTHROPIC', 'GROQ', 'OPENROUTER', 'XAI', 'MORPH', 'GEMINI', "SILICONFLOW", "OPENAI_COMPATIBLE"]
     for provider in providers:
         key = getattr(config, f'{provider}_API_KEY')
         if key:
@@ -50,6 +52,11 @@ def setup_api_keys() -> None:
     if config.OPENROUTER_API_KEY and config.OPENROUTER_API_BASE:
         os.environ['OPENROUTER_API_BASE'] = config.OPENROUTER_API_BASE
         logger.debug(f"Set OPENROUTER_API_BASE to {config.OPENROUTER_API_BASE}")
+    
+    # Set up SiliconFlow API base
+    if config.SILICONFLOW_API_KEY and config.SILICONFLOW_API_BASE:
+        os.environ['SILICONFLOW_API_BASE'] = config.SILICONFLOW_API_BASE
+        logger.debug(f"Set SILICONFLOW_API_BASE to {config.SILICONFLOW_API_BASE}")
 
     # Set up AWS Bedrock credentials
     aws_access_key = config.AWS_ACCESS_KEY_ID
@@ -64,6 +71,36 @@ def setup_api_keys() -> None:
         os.environ['AWS_REGION_NAME'] = aws_region
     else:
         logger.warning(f"Missing AWS credentials for Bedrock integration - access_key: {bool(aws_access_key)}, secret_key: {bool(aws_secret_key)}, region: {aws_region}")
+
+def setup_provider_router():
+    global provider_router
+    logger.info(f"openai-compatible-api-key: {os.environ["OPENAI_COMPATIBLE_API_KEY"]}, config.OPENAI_COMPATIBLE_API_KEY: {config.OPENAI_COMPATIBLE_API_KEY}")
+    model_list = [
+        {
+            "model_name": "openai-compatible/*",
+            "litellm_params": {
+                "model": "openai/*",
+                "api_key": config.OPENAI_COMPATIBLE_API_KEY,
+                "api_base": config.OPENAI_COMPATIBLE_API_BASE,
+            }
+        },
+        {
+            "model_name": "siliconflow/*", # support more OpenAI-Compatible LLM provider
+            "litellm_params": {
+                "model": "openai/*",
+                "api_key": config.SILICONFLOW_API_KEY,
+                "api_base": config.SILICONFLOW_API_BASE,
+            }
+        },
+        {
+            "model_name": "*",
+            "litellm_params": {
+                "model": "*",
+            }
+        }
+    ]
+    provider_router = Router(model_list=model_list)
+
 
 def get_openrouter_fallback(model_name: str) -> Optional[str]:
     """Get OpenRouter fallback model for a given model name."""
@@ -136,6 +173,10 @@ def prepare_params(
     if model_id:
         params["model_id"] = model_id
 
+    # reload env for openai-compatible at the first time
+    if model_name.startswith("openai-compatible/") and not (config.OPENAI_COMPATIBLE_API_KEY and config.OPENAI_COMPATIBLE_API_BASE):
+        setup_provider_router()
+    
     # Handle token limits
     if max_tokens is not None:
         # For Claude 3.7 in Bedrock, do not set max_tokens or max_tokens_to_sample
@@ -326,7 +367,7 @@ async def make_llm_api_call(
             logger.debug(f"Attempt {attempt + 1}/{MAX_RETRIES}")
             # logger.debug(f"API request parameters: {json.dumps(params, indent=2)}")
 
-            response = await litellm.acompletion(**params)
+            response = await provider_router.acompletion(**params)
             logger.debug(f"Successfully received API response from {model_name}")
             # logger.debug(f"Response: {response}")
             return response
@@ -347,3 +388,4 @@ async def make_llm_api_call(
 
 # Initialize API keys on module import
 setup_api_keys()
+setup_provider_router()

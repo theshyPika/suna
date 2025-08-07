@@ -1,0 +1,73 @@
+---
+config:
+  flowchart:
+    curve: basis
+  theme: default
+---
+flowchart TD
+  A([开始]):::first --> B@{shape: hex, label: "准备环境"} 
+  %% 准备环境= 获取账户ID，项目数据（包含沙盒信息），default工具
+  B --> |构建Agent|C[注册Agent构建相关工具]
+  C --> D
+  B --> |执行Agent|D[注册default工具]
+  %% Add standard configured MCPs,custom MCPs
+  D --> E[注册MCP工具]
+  %% 构建Agent - 添加构建Agent System Prompt，特定模型相关Prompt，知识库上下文,mcp工具
+  %% 执行Agent - 添加特定模型相关Prompt，知识库上下文，mcp工具
+  E --> F[构建Prompt]
+  %% F --> G@{shape: notch-pent, label:""}
+  F --> G[主循环处理]
+%% 若使用xml_tools，SystemPrompt上下文中添加xml_tools描述。   
+  G --> H[准备上下文]
+  H --> J[执行LLM调用]
+  J --> K[处理响应]
+  %% 终止信号：来自用户请求或ASK、Complete、Web-browser-takeover等工具
+  %% 任务结束
+  K --> |
+          Native工具调用
+          且
+          未超过工具调用次数限制
+        |J
+  K --> |
+          XML工具调用 
+          或 
+          超过工具调用限制
+        |L@{shape: notch-pent, label: "检查停止和结束条件"}
+  L -->|收到终止信号或任务结束|M[清理资源]
+  L -->|继续运行| G
+
+  %% J --> K([结束]):::last
+  %% S1[(supabase)]
+  %% classDef module fill:#e6f3ff,stroke:#3399ff
+  %% classDef function fill:#f0f7ff,stroke:#66b3ff
+  %% classDef first fill-opacity:0
+  %% classDef last fill:#bfb6fc
+
+  %% class B,G,J module
+  %% class C,D,E,F,H,I function
+
+    %% %% A([开始]):::first -->B[初始化环境]
+    %% A[开始]:::first --> B[生成AgentResponce]
+    %% %%  B@{ shape: diamond, label: "检测停止信号"}
+    %% B --> |收到|C[更新Agent运行状态]
+    %% C --> K
+    %% B --> |未收到|D@{ shape: diamond, label: "检测任务执行状态"}
+
+    %% %% B --> C[注册工具]
+    %% C --> D[构建系统提示]
+    %% D --> E[主循环处理]
+    %% E -->|正常| F[准备上下文]
+    %% E -->|异常| G[终止运行]
+    %% F --> H[执行LLM调用]
+    %% H --> I[处理响应]
+    %% I -->|收到终止信号| J[清理资源]
+    %% I -->|继续运行| E
+    %% J --> K([结束]):::last
+
+    %% classDef module fill:#e6f3ff,stroke:#3399ff
+    %% classDef function fill:#f0f7ff,stroke:#66b3ff
+    %% classDef first fill-opacity:0
+    %% classDef last fill:#bfb6fc
+
+    %% class B,G,J module
+    %% class C,D,E,F,H,I function

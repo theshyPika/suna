@@ -63,8 +63,11 @@ def save_env_vars(request: Dict[str, str]) -> Dict[str, str]:
             set_key(env_path, key, value)
         
         load_dotenv(override=True)
+        # Force update os.environ to avoid needing restart
+        config._load_from_env()
+
         logger.info(f"Env variables saved successfully: {request}")
         return {"message": "Env variables saved successfully"}
     except Exception as e:
         logger.error(f"Failed to save env variables: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to save env variables: {e}") 
+        raise HTTPException(status_code=500, detail=f"Failed to save env variables: {e}")
